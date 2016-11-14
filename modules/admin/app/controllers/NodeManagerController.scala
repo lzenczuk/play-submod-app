@@ -1,24 +1,22 @@
 package controllers
 
-import com.google.inject.{Inject, Singleton}
-import play.api.mvc.{Action, Controller}
-import akka.actor.ActorSystem
-import play.api.libs.concurrent.Execution.Implicits.defaultContext
+import javax.inject.{Inject, Named, Singleton}
 
-import scala.concurrent.duration._
+import akka.actor.ActorRef
 import akka.pattern.ask
 import akka.util.Timeout
-import com.github.lzenczuk.cn.cluster.NodeManagerActor
+import play.api.libs.concurrent.Execution.Implicits.defaultContext
+import play.api.mvc.{Action, Controller}
+
+import scala.concurrent.duration._
 
 /**
   * Created by dev on 14/11/16.
   */
 @Singleton
-class NodeManagerController @Inject()(system: ActorSystem) extends Controller{
+class NodeManagerController @Inject()(@Named("node-manager-actor") nodeManagerActor: ActorRef) extends Controller{
 
   implicit val timeout: Timeout = 5.seconds
-
-  val nodeManagerActor = system.actorOf(NodeManagerActor.props)
 
   def ping = Action.async{
     (nodeManagerActor ? "Hello").mapTo[String].map{

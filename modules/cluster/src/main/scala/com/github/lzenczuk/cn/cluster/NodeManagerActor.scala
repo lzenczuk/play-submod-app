@@ -15,6 +15,6 @@ class NodeManagerActor extends Actor with ActorLogging {
   def receive = {
     case s:String =>
       log.info(s"Receive message: $s")
-      sender ! "NodeManagerResponse"
+      sender ! "NodeManagerResponse: hello sender"
   }
 }
