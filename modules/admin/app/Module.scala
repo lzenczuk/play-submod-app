@@ -1,10 +1,10 @@
-import com.google.inject.AbstractModule
-import java.time.Clock
+import javax.inject.{Inject, Provider, Singleton}
 
+import akka.actor.ActorSystem
+import akka.cluster.Cluster
 import com.github.lzenczuk.cn.cluster.NodeManagerActor
+import com.google.inject.{AbstractModule, Provides}
 import play.api.libs.concurrent.AkkaGuiceSupport
-
-// import services.{ApplicationTimer, AtomicCounter, Counter}
 
 /**
   * This class is a Guice module that tells Guice how to bind several
@@ -18,6 +18,11 @@ import play.api.libs.concurrent.AkkaGuiceSupport
   */
 class Module extends AbstractModule with AkkaGuiceSupport{
 
+  @Provides
+  def provideCluster(actorSystem: ActorSystem):Cluster = {
+    Cluster(actorSystem)
+  }
+
   override def configure() = {
     // Use the system clock as the default implementation of Clock
     //bind(classOf[Clock]).toInstance(Clock.systemDefaultZone)
@@ -30,7 +35,18 @@ class Module extends AbstractModule with AkkaGuiceSupport{
     //bind(classOf[Counter]).to(classOf[AtomicCounter])
 
     bindActor[NodeManagerActor]("node-manager-actor")
-
   }
 
 }
+/*
+@Singleton
+class ClusterProvider @Inject() (actorSystem: ActorSystem) extends Provider[Cluster] {
+
+  println("--------------> Cluster provider created")
+
+  lazy val get: Cluster = {
+    println("--------------> Creating new cluster instance")
+    Cluster(actorSystem)
+  }
+}*/
+

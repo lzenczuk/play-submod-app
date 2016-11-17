@@ -1,5 +1,7 @@
 package com.github.lzenczuk.cn.cluster
 
+import javax.inject.Inject
+
 import akka.actor.{Actor, ActorLogging, Address, Props}
 import akka.cluster.MemberStatus._
 import akka.cluster.{Cluster, MemberStatus, UniqueAddress}
@@ -25,11 +27,9 @@ object NodeManagerActor {
   }
 }
 
-class NodeManagerActor extends Actor with ActorLogging {
+class NodeManagerActor @Inject()(cluster: Cluster) extends Actor with ActorLogging {
 
   import NodeManagerActor._
-
-  private val cluster: Cluster = Cluster(context.system)
 
   implicit def memberStatusToString(memberStatus:MemberStatus):String = {
     memberStatus match {

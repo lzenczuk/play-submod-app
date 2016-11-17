@@ -16,6 +16,7 @@ project/plugins/project/
 
 modules/*/target
 modules/*/logs
+logs
 
 ### Intellij Idea
 .idea
