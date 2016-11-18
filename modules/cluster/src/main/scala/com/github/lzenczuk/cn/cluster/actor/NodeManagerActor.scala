@@ -1,4 +1,4 @@
-package com.github.lzenczuk.cn.cluster
+package com.github.lzenczuk.cn.cluster.actor
 
 import javax.inject.Inject
 

@@ -2,7 +2,9 @@ import javax.inject.{Inject, Provider, Singleton}
 
 import akka.actor.ActorSystem
 import akka.cluster.Cluster
-import com.github.lzenczuk.cn.cluster.NodeManagerActor
+import com.github.lzenczuk.cn.cluster.actor.{ClusterNotificationActor, NodeManagerActor}
+import com.github.lzenczuk.cn.cluster.domain.ApplicationCluster
+import com.github.lzenczuk.cn.cluster.domain.impl.ApplicationClusterImpl
 import com.google.inject.{AbstractModule, Provides}
 import play.api.libs.concurrent.AkkaGuiceSupport
 
@@ -34,7 +36,9 @@ class Module extends AbstractModule with AkkaGuiceSupport{
     // Set AtomicCounter as the implementation for Counter.
     //bind(classOf[Counter]).to(classOf[AtomicCounter])
 
+    bind(classOf[ApplicationCluster]).to(classOf[ApplicationClusterImpl])
     bindActor[NodeManagerActor]("node-manager-actor")
+    bindActor[ClusterNotificationActor]("cluster-notification-actor")
   }
 
 }

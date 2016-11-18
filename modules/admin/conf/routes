@@ -7,3 +7,5 @@ GET  /node                  controllers.NodeManagerController.status
 POST /node/joinCluster      controllers.NodeManagerController.joinCluster
 POST /node/createCluster    controllers.NodeManagerController.createCluster
 POST /node/leaveCluster     controllers.NodeManagerController.leaveCluster
+
+GET /ws/notification        controllers.NotificationController.socket

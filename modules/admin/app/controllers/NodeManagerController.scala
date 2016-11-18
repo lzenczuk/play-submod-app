@@ -5,8 +5,8 @@ import javax.inject.{Inject, Named, Singleton}
 import akka.actor.ActorRef
 import akka.pattern.ask
 import akka.util.Timeout
-import com.github.lzenczuk.cn.cluster.NodeManagerActor
-import com.github.lzenczuk.cn.cluster.NodeManagerActor._
+import com.github.lzenczuk.cn.cluster.actor.NodeManagerActor
+import com.github.lzenczuk.cn.cluster.actor.NodeManagerActor._
 import play.api.libs.concurrent.Execution.Implicits.defaultContext
 import play.api.libs.json.{JsError, JsResult, Json}
 import play.api.mvc.{Action, BodyParsers, Controller}
