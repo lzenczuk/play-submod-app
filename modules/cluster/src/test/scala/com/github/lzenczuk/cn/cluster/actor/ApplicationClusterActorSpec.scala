@@ -4,7 +4,7 @@ import akka.actor.{ActorSystem, Address, Terminated}
 import akka.cluster.ClusterEvent.{CurrentClusterState, LeaderChanged, MemberEvent, MemberUp}
 import akka.cluster.{Cluster, Member, MemberStatus}
 import akka.testkit.{ImplicitSender, TestActorRef, TestKit}
-import com.github.lzenczuk.cn.cluster.actor.ClusterNotificationActor.SubscribeClusterStatus
+import com.github.lzenczuk.cn.cluster.actor.ApplicationClusterActor.SubscribeClusterStatus
 import com.github.lzenczuk.cn.cluster.domain._
 import org.mockito.Mockito._
 import org.scalatest.mockito.MockitoSugar
@@ -13,13 +13,13 @@ import org.scalatest.{FlatSpecLike, Matchers}
 /**
   * Created by dev on 15/11/16.
   */
-class ClusterNotificationActorSpec extends TestKit(ActorSystem("ClusterNotificationActorSpec-system")) with FlatSpecLike with Matchers with MockitoSugar with ImplicitSender {
+class ApplicationClusterActorSpec extends TestKit(ActorSystem("ClusterNotificationActorSpec-system")) with FlatSpecLike with Matchers with MockitoSugar with ImplicitSender {
 
   "ClusterNotificationActor" should "subscribe to cluster events" in {
 
     val cluster = mock[Cluster]
     val applicationCluster = mock[ApplicationCluster]
-    val actorRef = TestActorRef(new ClusterNotificationActor(cluster, applicationCluster))
+    val actorRef = TestActorRef(new ApplicationClusterActor(cluster, applicationCluster))
 
     verify(cluster).subscribe(actorRef, classOf[MemberEvent], classOf[LeaderChanged])
   }
@@ -31,7 +31,7 @@ class ClusterNotificationActorSpec extends TestKit(ActorSystem("ClusterNotificat
 
     when(applicationCluster.get()).thenReturn(ClusterChange())
 
-    val actorRef = TestActorRef(new ClusterNotificationActor(cluster, applicationCluster))
+    val actorRef = TestActorRef(new ApplicationClusterActor(cluster, applicationCluster))
 
     actorRef ! SubscribeClusterStatus
 
@@ -62,7 +62,7 @@ class ClusterNotificationActorSpec extends TestKit(ActorSystem("ClusterNotificat
       NodeChange("akka.tcp", "test-system", None, None, 3L, NodeState.Up, false)
     )))
 
-    val actorRef = TestActorRef(new ClusterNotificationActor(cluster, applicationCluster))
+    val actorRef = TestActorRef(new ApplicationClusterActor(cluster, applicationCluster))
 
     val member1: Member = akka.cluster.createTestClusterMember("akka.tcp", "test-system", 1L, MemberStatus.up)
     val member2: Member = akka.cluster.createTestClusterMember("akka.tcp", "test-system", 2L, MemberStatus.up)
@@ -104,7 +104,7 @@ class ClusterNotificationActorSpec extends TestKit(ActorSystem("ClusterNotificat
       NodeChange("akka.tcp", "test-system", None, None, 1L, NodeState.Up, false)
     )))
 
-    val actorRef = TestActorRef(new ClusterNotificationActor(cluster, applicationCluster))
+    val actorRef = TestActorRef(new ApplicationClusterActor(cluster, applicationCluster))
 
     val member1: Member = akka.cluster.createTestClusterMember("akka.tcp", "test-system", 1L, MemberStatus.up)
 
@@ -140,7 +140,7 @@ class ClusterNotificationActorSpec extends TestKit(ActorSystem("ClusterNotificat
       NodeChange("akka.tcp", "test-system", None, None, 1L, NodeState.Up, false)
     )))
 
-    val actorRef = TestActorRef(new ClusterNotificationActor(cluster, applicationCluster))
+    val actorRef = TestActorRef(new ApplicationClusterActor(cluster, applicationCluster))
 
     val address: Address = Address("akka.tcp", "test-system")
     val leaderChanged: LeaderChanged = LeaderChanged(Some(address))
@@ -162,5 +162,49 @@ class ClusterNotificationActorSpec extends TestKit(ActorSystem("ClusterNotificat
 
     verify(applicationCluster, times(1)).get()
     verify(applicationCluster, times(1)).updateNode(NodeId("akka.tcp", "test-system", None, None), true)
+  }
+
+  "ClusterNotificationActor" should "create cluster" in {
+
+    val cluster = mock[Cluster]
+    val applicationCluster = mock[ApplicationCluster]
+
+    val clusterSelfAddress = Address("akka.tcp", "cluster-test-system")
+    when(cluster.selfAddress).thenReturn(clusterSelfAddress)
+
+    val actorRef = TestActorRef(new ApplicationClusterActor(cluster, applicationCluster))
+
+    actorRef ! ApplicationClusterActor.CreateCluster
+
+    verify(cluster).join(clusterSelfAddress)
+  }
+
+  "ClusterNotificationActor" should "join cluster" in {
+
+    val cluster = mock[Cluster]
+    val applicationCluster = mock[ApplicationCluster]
+
+    val otherNodeAddress = Address("akka.tcp", "cluster-test-system-2")
+
+    val actorRef = TestActorRef(new ApplicationClusterActor(cluster, applicationCluster))
+
+    actorRef ! ApplicationClusterActor.JoinCluster(otherNodeAddress.protocol, otherNodeAddress.system, otherNodeAddress.host, otherNodeAddress.port)
+
+    verify(cluster).join(otherNodeAddress)
+  }
+
+  "ClusterNotificationActor" should "leave cluster" in {
+
+    val cluster = mock[Cluster]
+    val applicationCluster = mock[ApplicationCluster]
+
+    val clusterSelfAddress = Address("akka.tcp", "cluster-test-system")
+    when(cluster.selfAddress).thenReturn(clusterSelfAddress)
+
+    val actorRef = TestActorRef(new ApplicationClusterActor(cluster, applicationCluster))
+
+    actorRef ! ApplicationClusterActor.LeaveCluster
+
+    verify(cluster).leave(clusterSelfAddress)
   }
 }

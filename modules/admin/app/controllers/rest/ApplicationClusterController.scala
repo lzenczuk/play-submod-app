@@ -1,14 +1,15 @@
-package controllers
+package controllers.rest
 
 import javax.inject.{Inject, Named, Singleton}
 
 import akka.actor.ActorRef
 import akka.pattern.ask
 import akka.util.Timeout
-import com.github.lzenczuk.cn.cluster.actor.NodeManagerActor
-import com.github.lzenczuk.cn.cluster.actor.NodeManagerActor._
+import com.github.lzenczuk.cn.cluster.actor.ApplicationClusterActor
+import com.github.lzenczuk.cn.cluster.domain.ClusterChange
+import controllers.ClusterModelJsonMapper
 import play.api.libs.concurrent.Execution.Implicits.defaultContext
-import play.api.libs.json.{JsError, JsResult, Json}
+import play.api.libs.json.{JsError, Json}
 import play.api.mvc.{Action, BodyParsers, Controller}
 
 import scala.concurrent.duration._
@@ -16,24 +17,25 @@ import scala.concurrent.duration._
 /**
   * Created by dev on 14/11/16.
   */
+
+case class ClusterAddress(protocol: String, system: String, host: String, port: Int)
+
 @Singleton
-class NodeManagerController @Inject()(@Named("node-manager-actor") nodeManagerActor: ActorRef) extends Controller{
+class ApplicationClusterController @Inject()(@Named("application-cluster-actor") applicationClusterActor: ActorRef) extends Controller{
+  import ClusterModelJsonMapper.clusterChangeWrites
 
   implicit val actorAskTimeout: Timeout = 5.seconds
-
-  implicit val clusterMemberWrites = Json.writes[ClusterMember]
-  implicit val nodeStatusWrites = Json.writes[NodeStatus]
 
   implicit val clusterAddressReads = Json.reads[ClusterAddress]
 
   def status = Action.async{
-    (nodeManagerActor ? NodeManagerActor.GetNodeStatus).mapTo[NodeStatus].map{
+    (applicationClusterActor ? ApplicationClusterActor.GetClusterState).mapTo[ClusterChange].map{
       ns => Ok(Json.toJson(ns))
     }
   }
 
   def createCluster = Action{
-    nodeManagerActor ! CreateCluster
+    applicationClusterActor ! ApplicationClusterActor.CreateCluster
     Ok(Json.obj("status" -> "OK", "message" -> "Create cluster request send"))
   }
 
@@ -46,14 +48,14 @@ class NodeManagerController @Inject()(@Named("node-manager-actor") nodeManagerAc
         BadRequest(Json.obj("status" ->"OK", "message" -> JsError.toJson(errors)))
       },
       clusterAddress => {
-        nodeManagerActor ! JoinCluster(clusterAddress)
+        applicationClusterActor ! ApplicationClusterActor.JoinCluster(clusterAddress.protocol, clusterAddress.system, Some(clusterAddress.host), Some(clusterAddress.port))
         Ok(Json.obj("status" -> "OK", "message" -> "Join cluster request send"))
       }
     )
   }
 
   def leaveCluster = Action{
-    nodeManagerActor ! LeaveCluster
+    applicationClusterActor ! ApplicationClusterActor.LeaveCluster
     Ok(Json.obj("status" -> "OK", "message" -> "Leave cluster request send"))
   }
 

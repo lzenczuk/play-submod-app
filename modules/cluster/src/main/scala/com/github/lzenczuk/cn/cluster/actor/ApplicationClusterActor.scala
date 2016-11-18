@@ -13,12 +13,19 @@ import com.github.lzenczuk.cn.cluster.domain.{ApplicationCluster, ClusterChange,
   * Created by dev on 15/11/16.
   */
 
-object ClusterNotificationActor {
+object ApplicationClusterActor {
+
   case object SubscribeClusterStatus
+
+  case object GetClusterState
+
+  case object CreateCluster
+  case class JoinCluster(protocol: String, system: String, host: Option[String], port: Option[Int])
+  case object LeaveCluster
 }
 
-class ClusterNotificationActor @Inject() (akkaCluster: Cluster, applicationCluster:ApplicationCluster) extends Actor with ActorLogging {
-  import ClusterNotificationActor._
+class ApplicationClusterActor @Inject()(akkaCluster: Cluster, applicationCluster:ApplicationCluster) extends Actor with ActorLogging {
+  import ApplicationClusterActor._
 
   var broadcastRouter = Router(BroadcastRoutingLogic())
 
@@ -69,6 +76,7 @@ class ClusterNotificationActor @Inject() (akkaCluster: Cluster, applicationClust
       sender ! applicationCluster.get()
       context.watch(sender)
       broadcastRouter = broadcastRouter.addRoutee(sender)
+
     case Terminated(subject:ActorRef) =>
       broadcastRouter = broadcastRouter.removeRoutee(subject)
 
@@ -81,6 +89,19 @@ class ClusterNotificationActor @Inject() (akkaCluster: Cluster, applicationClust
         val cc = applicationCluster.updateNode(address, true)
         broadcastRouter.route(cc, self)
       })
+
+    case GetClusterState =>
+      sender ! applicationCluster.get()
+
+    case JoinCluster(protocol, system, host, port) =>
+      val ca = Address(protocol, system, host, port)
+      akkaCluster.join(ca)
+
+    case CreateCluster =>
+      akkaCluster.join(akkaCluster.selfAddress)
+
+    case LeaveCluster =>
+      akkaCluster.leave(akkaCluster.selfAddress)
 
   }
 }

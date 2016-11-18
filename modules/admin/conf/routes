@@ -3,9 +3,9 @@
 # ~~~~
 
 GET  /                      controllers.AppController.index
-GET  /node                  controllers.NodeManagerController.status
-POST /node/joinCluster      controllers.NodeManagerController.joinCluster
-POST /node/createCluster    controllers.NodeManagerController.createCluster
-POST /node/leaveCluster     controllers.NodeManagerController.leaveCluster
+GET  /node                  controllers.rest.ApplicationClusterController.status
+POST /node/joinCluster      controllers.rest.ApplicationClusterController.joinCluster
+POST /node/createCluster    controllers.rest.ApplicationClusterController.createCluster
+POST /node/leaveCluster     controllers.rest.ApplicationClusterController.leaveCluster
 
-GET /ws/notification        controllers.NotificationController.socket
+GET /ws/notification        controllers.ws.NotificationController.socket
