@@ -1,7 +1,7 @@
 package com.github.lzenczuk.cn.cluster.actor
 
-import akka.actor.{ActorSystem, Terminated}
-import akka.cluster.ClusterEvent.{CurrentClusterState, MemberEvent, MemberUp}
+import akka.actor.{ActorSystem, Address, Terminated}
+import akka.cluster.ClusterEvent.{CurrentClusterState, LeaderChanged, MemberEvent, MemberUp}
 import akka.cluster.{Cluster, Member, MemberStatus}
 import akka.testkit.{ImplicitSender, TestActorRef, TestKit}
 import com.github.lzenczuk.cn.cluster.actor.ClusterNotificationActor.SubscribeClusterStatus
@@ -21,7 +21,7 @@ class ClusterNotificationActorSpec extends TestKit(ActorSystem("ClusterNotificat
     val applicationCluster = mock[ApplicationCluster]
     val actorRef = TestActorRef(new ClusterNotificationActor(cluster, applicationCluster))
 
-    verify(cluster).subscribe(actorRef, classOf[MemberEvent])
+    verify(cluster).subscribe(actorRef, classOf[MemberEvent], classOf[LeaderChanged])
   }
 
   "ClusterNotificationActorSpec" should "should send cluster state to new subscriber" in {
@@ -50,11 +50,11 @@ class ClusterNotificationActorSpec extends TestKit(ActorSystem("ClusterNotificat
     val cluster = mock[Cluster]
     val applicationCluster = mock[ApplicationCluster]
 
-    when(applicationCluster.updateNode(NodeId("akka.tcp", "test-system", None, None, 1L), NodeState.Up))
+    when(applicationCluster.updateNode(NodeId("akka.tcp", "test-system", None, None), 1L, NodeState.Up))
       .thenReturn(ClusterChange(List(NodeChange("akka.tcp", "test-system", None, None, 1L, NodeState.Up, false))))
-    when(applicationCluster.updateNode(NodeId("akka.tcp", "test-system", None, None, 2L), NodeState.Up))
+    when(applicationCluster.updateNode(NodeId("akka.tcp", "test-system", None, None), 2L, NodeState.Up))
       .thenReturn(ClusterChange(List(NodeChange("akka.tcp", "test-system", None, None, 2L, NodeState.Up, false))))
-    when(applicationCluster.updateNode(NodeId("akka.tcp", "test-system", None, None, 3L), NodeState.Up))
+    when(applicationCluster.updateNode(NodeId("akka.tcp", "test-system", None, None), 3L, NodeState.Up))
       .thenReturn(ClusterChange(List(NodeChange("akka.tcp", "test-system", None, None, 3L, NodeState.Up, false))))
     when(applicationCluster.get()).thenReturn(ClusterChange(List(
       NodeChange("akka.tcp", "test-system", None, None, 1L, NodeState.Up, false),
@@ -88,9 +88,9 @@ class ClusterNotificationActorSpec extends TestKit(ActorSystem("ClusterNotificat
     expectNoMsg()
 
     verify(applicationCluster, times(1)).get()
-    verify(applicationCluster, times(1)).updateNode(NodeId("akka.tcp", "test-system", None, None, 1L), NodeState.Up)
-    verify(applicationCluster, times(1)).updateNode(NodeId("akka.tcp", "test-system", None, None, 2L), NodeState.Up)
-    verify(applicationCluster, times(1)).updateNode(NodeId("akka.tcp", "test-system", None, None, 3L), NodeState.Up)
+    verify(applicationCluster, times(1)).updateNode(NodeId("akka.tcp", "test-system", None, None), 1L, NodeState.Up)
+    verify(applicationCluster, times(1)).updateNode(NodeId("akka.tcp", "test-system", None, None), 2L, NodeState.Up)
+    verify(applicationCluster, times(1)).updateNode(NodeId("akka.tcp", "test-system", None, None), 3L, NodeState.Up)
   }
 
   "ClusterNotificationActor" should "should send change event after receiving member event" in {
@@ -98,7 +98,7 @@ class ClusterNotificationActorSpec extends TestKit(ActorSystem("ClusterNotificat
     val cluster = mock[Cluster]
     val applicationCluster = mock[ApplicationCluster]
 
-    when(applicationCluster.updateNode(NodeId("akka.tcp", "test-system", None, None, 1L), NodeState.Up))
+    when(applicationCluster.updateNode(NodeId("akka.tcp", "test-system", None, None), 1L, NodeState.Up))
       .thenReturn(ClusterChange(List(NodeChange("akka.tcp", "test-system", None, None, 1L, NodeState.Up, false))))
     when(applicationCluster.get()).thenReturn(ClusterChange(List(
       NodeChange("akka.tcp", "test-system", None, None, 1L, NodeState.Up, false)
@@ -126,71 +126,41 @@ class ClusterNotificationActorSpec extends TestKit(ActorSystem("ClusterNotificat
     expectNoMsg()
 
     verify(applicationCluster, times(1)).get()
-    verify(applicationCluster, times(1)).updateNode(NodeId("akka.tcp", "test-system", None, None, 1L), NodeState.Up)
+    verify(applicationCluster, times(1)).updateNode(NodeId("akka.tcp", "test-system", None, None), 1L, NodeState.Up)
   }
 
-  "ClusterNotificationActor" should "shouldn't send change event after termination of subscriber" in {
+  "ClusterNotificationActor" should "should change leader when receive LeaderChange message" in {
 
-    /*val cluster = mock[Cluster]
+    val cluster = mock[Cluster]
     val applicationCluster = mock[ApplicationCluster]
 
-    when(applicationCluster.updateNode(NodeId("akka.tcp", "test-system", None, None, 1L), NodeState.Up))
-      .thenReturn(ClusterChange(List(NodeChange("akka.tcp", "test-system", None, None, 1L, NodeState.Up, false))))
+    when(applicationCluster.updateNode(NodeId("akka.tcp", "test-system", None, None), true))
+      .thenReturn(ClusterChange(List(NodeChange("akka.tcp", "test-system", None, None, 1L, NodeState.Unknown, true))))
     when(applicationCluster.get()).thenReturn(ClusterChange(List(
       NodeChange("akka.tcp", "test-system", None, None, 1L, NodeState.Up, false)
     )))
 
     val actorRef = TestActorRef(new ClusterNotificationActor(cluster, applicationCluster))
 
-    val member1: Member = akka.cluster.createTestClusterMember("akka.tcp", "test-system", 1L, MemberStatus.up)
-
-    val memberUpEvent: MemberUp = MemberUp(member1)
+    val address: Address = Address("akka.tcp", "test-system")
+    val leaderChanged: LeaderChanged = LeaderChanged(Some(address))
 
     actorRef ! SubscribeClusterStatus
 
     expectMsgClass(classOf[ClusterChange])
     verify(applicationCluster, times(1)).get()
 
-    actorRef ! Terminated(self)(false, false)
-
-    expectNoMsg()
-
-    actorRef ! memberUpEvent
-
-    expectNoMsg()
-
-    verify(applicationCluster, times(1)).get()
-    verify(applicationCluster, times(1)).updateNode(NodeId("akka.tcp", "test-system", None, None, 1L), NodeState.Up)*/
-  }
-
-  /*
-  "ClusterNotificationActorSpec" should "should send empty cluster state to subscriber when not receive CurrentClusterState yet" in {
-
-    val cluster = mock[Cluster]
-    val actorRef = TestActorRef(new ClusterNotificationActor(cluster))
-
-    val member1: Member = akka.cluster.createTestClusterMember("akka.tcp", "test-system", 1L, MemberStatus.up)
-    val member2: Member = akka.cluster.createTestClusterMember("akka.tcp", "test-system", 2L, MemberStatus.up)
-    val member3: Member = akka.cluster.createTestClusterMember("akka.tcp", "test-system", 3L, MemberStatus.up)
-
-    val currentClusterState: CurrentClusterState = CurrentClusterState(scala.collection.immutable.SortedSet(member1, member2, member3))
-
-    actorRef ! SubscribeClusterStatus
+    actorRef ! leaderChanged
 
     expectMsgPF(){
-      case cs:AppCluster =>
-        assert(cs.leader.isEmpty)
-        assert(cs.members.isEmpty)
+      case cs:ClusterChange =>
+        assert(cs.changes.size==1)
+        assert(cs.changes(0)==NodeChange("akka.tcp", "test-system", None, None, 1L, NodeState.Unknown, true))
     }
 
     expectNoMsg()
 
-    actorRef ! currentClusterState
-
-    expectMsgClass(classOf[AppClusterNodeChange])
-    expectMsgClass(classOf[AppClusterNodeChange])
-    expectMsgClass(classOf[AppClusterNodeChange])
+    verify(applicationCluster, times(1)).get()
+    verify(applicationCluster, times(1)).updateNode(NodeId("akka.tcp", "test-system", None, None), true)
   }
-  */
-
 }

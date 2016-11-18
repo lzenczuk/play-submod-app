@@ -18,6 +18,7 @@ object NodeState {
 }
 
 case class NodeChange(protocol: String, system: String, host: Option[String], port: Option[Int], uid: Long, nodeState: NodeState, leader: Boolean)
+
 case class ClusterChange(changes:List[NodeChange] = List()){
 
   /**

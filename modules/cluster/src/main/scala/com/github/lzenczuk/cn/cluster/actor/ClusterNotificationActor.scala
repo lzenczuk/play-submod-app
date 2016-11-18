@@ -4,7 +4,7 @@ import javax.inject.Inject
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Address, Terminated}
 import akka.cluster.ClusterEvent._
-import akka.cluster.{Cluster, Member, MemberStatus, UniqueAddress}
+import akka.cluster.{Cluster, MemberStatus}
 import akka.routing.{BroadcastRoutingLogic, Router}
 import com.github.lzenczuk.cn.cluster.domain.{ApplicationCluster, ClusterChange, NodeId, NodeState}
 
@@ -24,7 +24,7 @@ class ClusterNotificationActor @Inject() (akkaCluster: Cluster, applicationClust
 
   @scala.throws[Exception](classOf[Exception])
   override def preStart(): Unit = {
-    akkaCluster.subscribe(self, classOf[MemberEvent])
+    akkaCluster.subscribe(self, classOf[MemberEvent], classOf[LeaderChanged])
   }
 
   @scala.throws[Exception](classOf[Exception])
@@ -35,14 +35,11 @@ class ClusterNotificationActor @Inject() (akkaCluster: Cluster, applicationClust
 
   @scala.throws[Exception](classOf[Exception])
   override def postRestart(reason: Throwable): Unit = {
-    akkaCluster.subscribe(self, classOf[MemberEvent])
+    akkaCluster.subscribe(self, classOf[MemberEvent], classOf[LeaderChanged])
   }
 
-  implicit def memberToNodeId(member:Member):NodeId = {
-    val ua: UniqueAddress = member.uniqueAddress
-    val a: Address = ua.address
-
-    NodeId(a.protocol, a.system, a.host, a.port, ua.longUid)
+  implicit def addressToNodeId(address: Address):NodeId = {
+    NodeId(address.protocol, address.system, address.host, address.port)
   }
 
   implicit def memberStatusToNodeStatus(memberStatus: MemberStatus):NodeState = {
@@ -64,7 +61,7 @@ class ClusterNotificationActor @Inject() (akkaCluster: Cluster, applicationClust
       applicationCluster.reset
 
       val cc = currentClusterState.members.foldLeft(ClusterChange()){ (clusterChange, member) =>
-        clusterChange ++ applicationCluster.updateNode(member, member.status)
+        clusterChange ++ applicationCluster.updateNode(member.uniqueAddress.address, member.uniqueAddress.longUid, member.status)
       }
       broadcastRouter.route(cc, self)
 
@@ -74,8 +71,16 @@ class ClusterNotificationActor @Inject() (akkaCluster: Cluster, applicationClust
       broadcastRouter = broadcastRouter.addRoutee(sender)
     case Terminated(subject:ActorRef) =>
       broadcastRouter = broadcastRouter.removeRoutee(subject)
+
     case memberEvent: MemberEvent =>
-      val cc = applicationCluster.updateNode(memberEvent.member, memberEvent.member.status)
+      val cc = applicationCluster.updateNode(memberEvent.member.uniqueAddress.address, memberEvent.member.uniqueAddress.longUid, memberEvent.member.status)
       broadcastRouter.route(cc, self)
+
+    case leaderChanged:LeaderChanged =>
+      leaderChanged.leader.foreach(address => {
+        val cc = applicationCluster.updateNode(address, true)
+        broadcastRouter.route(cc, self)
+      })
+
   }
 }

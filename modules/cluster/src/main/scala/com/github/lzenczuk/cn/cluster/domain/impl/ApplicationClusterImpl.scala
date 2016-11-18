@@ -1,6 +1,5 @@
 package com.github.lzenczuk.cn.cluster.domain.impl
 
-import com.github.lzenczuk.cn.cluster._
 import com.github.lzenczuk.cn.cluster.domain._
 
 /**
@@ -9,7 +8,7 @@ import com.github.lzenczuk.cn.cluster.domain._
 
 class ApplicationClusterImpl extends ApplicationCluster{
 
-  class ApplicationNode(nodeId: NodeId, var nodeState: NodeState, var leader: Boolean){
+  class ApplicationNode(nodeId: NodeId, var uid: Long, var nodeState: NodeState, var leader: Boolean){
 
     def update(isLeader: Boolean):NodeChange = {
       leader = isLeader
@@ -22,7 +21,7 @@ class ApplicationClusterImpl extends ApplicationCluster{
       toNodeChange
     }
 
-    def toNodeChange:NodeChange = NodeChange(nodeId.protocol, nodeId.system, nodeId.host, nodeId.port, nodeId.uid, nodeState, leader)
+    def toNodeChange:NodeChange = NodeChange(nodeId.protocol, nodeId.system, nodeId.host, nodeId.port, uid, nodeState, leader)
   }
 
   var leader:Option[NodeId] = None
@@ -32,24 +31,15 @@ class ApplicationClusterImpl extends ApplicationCluster{
     val changes = scala.collection.mutable.MutableList[NodeChange]()
 
     changes ++= updateLeader(nodeId, isNodeLeader)
-    changes ++= updateNodeState(nodeId, getNodeState(nodeId), isNodeLeader)
+    changes ++= updateNodeState(nodeId, getNodeUid(nodeId), getNodeState(nodeId), isNodeLeader)
 
     ClusterChange(changes.toList)
   }
 
-  override def updateNode(nodeId: NodeId, nodeState: NodeState): ClusterChange = {
+  override def updateNode(nodeId: NodeId, uid: Long, nodeState: NodeState): ClusterChange = {
     val changes = scala.collection.mutable.MutableList[NodeChange]()
 
-    changes ++= updateNodeState(nodeId, nodeState, getIsNodeLeader(nodeId))
-
-    ClusterChange(changes.toList)
-  }
-
-  override def updateNode(nodeId: NodeId, nodeState: NodeState, isNodeLeader: Boolean): ClusterChange = {
-    val changes = scala.collection.mutable.MutableList[NodeChange]()
-
-    changes ++= updateLeader(nodeId, isNodeLeader)
-    changes ++= updateNodeState(nodeId, nodeState, isNodeLeader)
+    changes ++= updateNodeState(nodeId, uid: Long, nodeState, getIsNodeLeader(nodeId))
 
     ClusterChange(changes.toList)
   }
@@ -79,11 +69,11 @@ class ApplicationClusterImpl extends ApplicationCluster{
     change
   }
 
-  private def updateNodeState(nodeId: NodeId, nodeState: NodeState, isNodeLeader: Boolean):List[NodeChange] = {
+  private def updateNodeState(nodeId: NodeId, uid: Long, nodeState: NodeState, isNodeLeader: Boolean):List[NodeChange] = {
     var change = List[NodeChange]()
 
     if(!members.contains(nodeId)){
-      val newNode: ApplicationNode = new ApplicationNode(nodeId, nodeState, isNodeLeader)
+      val newNode: ApplicationNode = new ApplicationNode(nodeId, uid: Long, nodeState, isNodeLeader)
       members = members + (nodeId -> newNode)
       change = List(newNode.toNodeChange)
     }else{
@@ -95,6 +85,10 @@ class ApplicationClusterImpl extends ApplicationCluster{
 
   private def getNodeState(nodeId: NodeId):NodeState = {
     members.get(nodeId).map(_.nodeState).getOrElse(NodeState.Unknown)
+  }
+
+  private def getNodeUid(nodeId: NodeId):Long = {
+    members.get(nodeId).map(_.uid).getOrElse(0)
   }
 
   private def getIsNodeLeader(nodeId: NodeId):Boolean = {
