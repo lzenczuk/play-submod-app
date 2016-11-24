@@ -11,4 +11,5 @@ lazy val crawler = Project(id="crawler", base = file("modules/crawler"))
 lazy val admin = Project(id="admin", base = file("modules/admin"))
   .enablePlugins(PlayScala)
   .dependsOn(cluster)
+  .dependsOn(cluster)
 
