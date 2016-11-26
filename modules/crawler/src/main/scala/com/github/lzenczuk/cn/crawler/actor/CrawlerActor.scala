@@ -2,10 +2,13 @@ package com.github.lzenczuk.cn.crawler.actor
 
 import javax.inject.Inject
 
-import akka.actor.{Actor, ActorLogging, ActorRef}
+import akka.actor.{ActorRef, FSM}
 import akka.cluster.pubsub.DistributedPubSubMediator.{Publish, Subscribe}
-import com.github.lzenczuk.cn.crawler.domain.{CrawlerRequest, CrawlerResponse}
-import com.github.lzenczuk.cn.crawler.flow.CrawlerFactory
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
+import com.github.lzenczuk.cn.crawler.actor.impl.{CrawlerData, CrawlerModel, EmptyModel}
+import com.github.lzenczuk.cn.crawler.domain.CrawlerRequest
+
+import scala.util.Try
 
 /**
   * Created by dev on 21/11/16.
@@ -18,12 +21,19 @@ object CrawlerActor {
 
   case object Ready
   case object StatusQuery
+
+  case class BusyWaitingForResponse(request: CrawlerRequest)
+
+  object fsm {
+    sealed trait State
+    case object WaitingForRequest extends State
+    case object WaitingForResponse extends State
+  }
 }
 
-class CrawlerActor @Inject() (mediator:ActorRef, crawlerFlowFactory: CrawlerFactory) extends Actor with ActorLogging{
+class CrawlerActor @Inject() (mediator:ActorRef, httpActor:ActorRef) extends FSM[CrawlerActor.fsm.State, CrawlerData]{
   import CrawlerActor._
-
-  val crawlerFlow = crawlerFlowFactory.createFlow(self)
+  import CrawlerActor.fsm._
 
   @scala.throws[Exception](classOf[Exception])
   override def preStart(): Unit = {
@@ -31,21 +41,30 @@ class CrawlerActor @Inject() (mediator:ActorRef, crawlerFlowFactory: CrawlerFact
     publishReadyEvent
   }
 
-  @scala.throws[Exception](classOf[Exception])
-  override def preRestart(reason: Throwable, message: Option[Any]): Unit = {
-    crawlerFlow.kill
+  startWith(WaitingForRequest, EmptyModel)
+
+  when(WaitingForRequest){
+    case Event(cr:CrawlerRequest,EmptyModel) =>
+      CrawlerModel(cr, sender) match {
+        case Left((request, newModel)) =>
+          httpActor ! request
+          goto(WaitingForResponse) using newModel
+        case Right(response) =>
+          sender ! response
+          stay()
+      }
   }
 
-
-  @scala.throws[Exception](classOf[Exception])
-  override def postStop(): Unit = {
-    crawlerFlow.kill
-  }
-
-  def receive = {
-    case StatusQuery => publishReadyEvent
-    case cr:CrawlerRequest => crawlerFlow.send(cr)
-    case cr:CrawlerResponse => println()
+  when(WaitingForResponse){
+    case Event(thr:Try[HttpResponse], model:CrawlerModel) =>
+      model.nextAction(thr) match {
+        case Left((request, newModel)) =>
+          httpActor ! request
+          stay() using newModel
+        case Right(response) =>
+          model.initialRequestSender ! response
+          goto(WaitingForRequest) using EmptyModel
+      }
   }
 
   private def publishReadyEvent: Unit = {
